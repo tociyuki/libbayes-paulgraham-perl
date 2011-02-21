@@ -1,4 +1,4 @@
-Bayes-PaulGraham version 0.001
+Bayes-PaulGraham version 0.002
 
 For your filtering spam messages, this module provides you to
 classify whether given text is a good message or a spam using
@@ -18,7 +18,7 @@ To install this module, run the following commands:
 DEPENDENCIES
 
     DBI
-    DBD::SQLite - to test, on runtime you may use another DBDs.
+    DBD::SQLite - to test, on runtime you may use SQLite or mysql.
 
 COPYRIGHT AND LICENCE
 

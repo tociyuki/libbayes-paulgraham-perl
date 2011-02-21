@@ -1,5 +1,8 @@
 Revision history for Bayes-PaulGraham
 
+0.002  Mon Feb 21 16:48:11 2011
+    + add support mysql.
+
 0.001  Mon Feb 21 14:57:10 2011
-       Initial release.
+    * Initial release.
 

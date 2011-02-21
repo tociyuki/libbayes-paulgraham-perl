@@ -4,7 +4,7 @@ use warnings;
 use Carp;
 
 # $Id$
-use version; our $VERSION = '0.001';
+use version; our $VERSION = '0.002';
 
 ## no critic qw(ProhibitImplicitNewlines ProhibitComplexMappings)
 
@@ -22,6 +22,9 @@ sub dbh {
     return $self->{dbh};
 }
 
+# MySQL causes error to smart SQL as followings:
+#   REPLACE INTO bayes_corpus VALUES (:w, :c, ifnull((SELECT num
+#     FROM bayes_corpus WHERE word = :w AND category = :c), 0) + 1);
 sub train {
     my($self, $category, $word_list) = @_;
     if ($category ne 'good' && $category ne 'spam') {
@@ -30,16 +33,34 @@ sub train {
     my $dbh = $self->dbh;
     my $begun_work =  $dbh->{BegunWork};
     $begun_work or $dbh->begin_work;
-    my $sth = $dbh->prepare(q{
-        INSERT OR REPLACE INTO bayes_corpus VALUES (
-           :w
-          ,:c
-          ,ifnull((SELECT num FROM bayes_corpus
-                    WHERE word = :w AND category = :c), 0) + 1
-        );
+    my %notyet = map { $_ => 1 } @{$word_list};
+    my @list = @{$word_list};
+    while (my @cur = splice @list, 0, 200) {
+        my $ph = join q{,}, (q{?}) x @cur;
+        my $query = $dbh->prepare(qq{
+            SELECT word FROM bayes_corpus
+                WHERE category = ? AND word IN ($ph);
+        });
+        $query->execute($category, @cur);
+        my @already = map { $_->[0] } @{ $query->fetchall_arrayref };
+        $query->finish;
+        next if ! @already;
+        $ph = join q{,}, (q{?}) x @already;
+        my $update = $dbh->prepare(qq{
+            UPDATE bayes_corpus
+               SET num = num + 1
+             WHERE category = ? AND word IN ($ph)
+        });
+        $update->execute($category, @already);
+        for my $word (@already) {
+            delete $notyet{$word};
+        }
+    }
+    my $insert = $dbh->prepare(q{
+        INSERT INTO bayes_corpus VALUES (?, ?, 1);
     });
-    for my $word (@{$word_list}) {
-        $sth->execute($word, $category);
+    for my $word (keys %notyet) {
+        $insert->execute($word, $category);
     }
     $dbh->do(qq{
         UPDATE bayes_messages
@@ -66,7 +87,6 @@ sub forget {
              WHERE category = ? AND word IN ($ph) AND num > 0;
         });
         $sth->execute($category, @cur);
-        $sth->finish;
     }
     $dbh->do(qq{
         UPDATE bayes_messages
@@ -190,7 +210,7 @@ Bayes::PaulGraham - bayesian document filter.
 
 =head1 VERSION
 
-0.001
+0.002
 
 =head1 SYNOPSIS
 
