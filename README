@@ -1,0 +1,28 @@
+Bayes-PaulGraham version 0.001
+
+For your filtering spam messages, this module provides you to
+classify whether given text is a good message or a spam using
+the Paul Graham's baysian filtering method.
+
+http://www.paulgraham.com/spam.html
+
+INSTALLATION
+
+To install this module, run the following commands:
+
+	perl Makefile.PL
+	make
+	make test
+	make install
+
+DEPENDENCIES
+
+    DBI
+    DBD::SQLite - to test, on runtime you may use another DBDs.
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2011, MIZUTANI Tociyuki
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.

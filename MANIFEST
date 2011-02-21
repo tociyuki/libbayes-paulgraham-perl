@@ -1,0 +1,14 @@
+Changes
+MANIFEST
+Makefile.PL
+README
+lib/Bayes/PaulGraham.pm
+t/00.load.t
+t/01.create_table.t
+t/02.train.t
+t/03.pickup.t
+t/04.word.t
+t/05.score.t
+t/perlcritic.t
+t/pod-coverage.t
+t/pod.t
