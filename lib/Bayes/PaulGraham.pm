@@ -306,7 +306,7 @@ Gets number of spam words after C<_pickup> instance method.
 =head1 DEPENDENCIES
 
 L<DBI>
-L<DBD::SQLite> - to test, on runtime you can use another DBDs.
+L<DBD::SQLite> - to test, on runtime you can use sqlite or mysql.
 
 =head1 SEE ALSO
 
