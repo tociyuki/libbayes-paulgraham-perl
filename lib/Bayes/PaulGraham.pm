@@ -278,7 +278,7 @@ we treat it is spam. The list of words is same bases of C<train>.
 
 =item C<< $self->create_table >>
 
-Creates tow tables in the database connected by dbh attribute.
+Creates two tables in the database connected by dbh attribute.
 
     SELECT good, spam FROM bayes_messages
         -- numbers of spam or good messages.
