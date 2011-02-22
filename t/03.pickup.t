@@ -27,8 +27,11 @@ for (0 .. 9) {
     $pgh->train('good' => [qw(the quick brown fox jumps)]);
 }
 $dbh->commit;
+
+$pgh->clear_cache;
+
 while (my $block = next_block()) {
-    $pgh->_pickup([split /\s+/msx, $block->input]);
+    $pgh->_fetch([split /\s+/msx, $block->input]);
     is_deeply
         +{
             good_messages => $pgh->{good_messages},
@@ -38,6 +41,9 @@ while (my $block = next_block()) {
         $block->expected,
         $block->name;
 }
+
+$dbh->do(q{DROP TABLE bayes_messages});
+$dbh->do(q{DROP TABLE bayes_corpus});
 
 $pgh->dbh(undef);
 $dbh->disconnect;

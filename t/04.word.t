@@ -27,9 +27,12 @@ for (0 .. 9) {
     $pgh->train('good' => [qw(the quick brown fox jumps)]);
 }
 $dbh->commit;
-$pgh->_pickup([qw(the quick brown fox jumps over the lazy dog)]);
-$pgh->_pickup([qw(quick rabbit)]);
-$pgh->_pickup([qw(quick money)]);
+
+$pgh->clear_cache;
+
+$pgh->_fetch([qw(the quick brown fox jumps over the lazy dog)]);
+$pgh->_fetch([qw(quick rabbit)]);
+$pgh->_fetch([qw(quick money)]);
 
 is $pgh->good_messages, 30, 'good_messages';
 is $pgh->spam_messages, 20, 'spam_messages';
@@ -43,6 +46,9 @@ while (my $block = next_block()) {
         $block->expected,
         $block->name;
 }
+
+$dbh->do(q{DROP TABLE bayes_messages});
+$dbh->do(q{DROP TABLE bayes_corpus});
 
 $pgh->dbh(undef);
 $dbh->disconnect;

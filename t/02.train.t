@@ -41,6 +41,9 @@ while (my $block = next_block()) {
         $block->name;
 }
 
+$dbh->do(q{DROP TABLE bayes_messages});
+$dbh->do(q{DROP TABLE bayes_corpus});
+
 $pgh->dbh(undef);
 $dbh->disconnect;
 

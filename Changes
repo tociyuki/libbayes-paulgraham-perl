@@ -1,5 +1,11 @@
 Revision history for Bayes-PaulGraham
 
+0.003  Tue Feb 22 05:01:26 2011
+    + add method clear_cache.
+    ! rename private method _pickup to _fetch.
+    ! rewrite train and forget uses _fetch and cache.
+    ! add DROP TABLE in t/* to test with mysql easily.
+
 0.002  Mon Feb 21 16:48:11 2011
     + add support mysql.
 

@@ -28,11 +28,16 @@ for (0 .. 9) {
 }
 $dbh->commit;
 
+$pgh->clear_cache;
+
 while (my $block = next_block()) {
     my $score = $pgh->score([split /\s+/msx, $block->input]);
     my $classify = $score < 0.6 ? 'good' : 'spam';
     is $classify, $block->expected, $block->name;
 }
+
+$dbh->do(q{DROP TABLE bayes_messages});
+$dbh->do(q{DROP TABLE bayes_corpus});
 
 $pgh->dbh(undef);
 $dbh->disconnect;

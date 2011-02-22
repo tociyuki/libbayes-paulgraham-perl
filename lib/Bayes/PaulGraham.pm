@@ -4,7 +4,7 @@ use warnings;
 use Carp;
 
 # $Id$
-use version; our $VERSION = '0.002';
+use version; our $VERSION = '0.003';
 
 ## no critic qw(ProhibitImplicitNewlines ProhibitComplexMappings)
 
@@ -22,6 +22,14 @@ sub dbh {
     return $self->{dbh};
 }
 
+sub clear_cache {
+    my($self) = @_;
+    $self->{state} = {};
+    $self->{corpus} = {};
+    $self->{good_messages} = $self->{spam_messages} = undef;
+    return $self;
+}
+
 # MySQL causes error to smart SQL as followings:
 #   REPLACE INTO bayes_corpus VALUES (:w, :c, ifnull((SELECT num
 #     FROM bayes_corpus WHERE word = :w AND category = :c), 0) + 1);
@@ -33,40 +41,43 @@ sub train {
     my $dbh = $self->dbh;
     my $begun_work =  $dbh->{BegunWork};
     $begun_work or $dbh->begin_work;
-    my %notyet = map { $_ => 1 } @{$word_list};
-    my @list = @{$word_list};
+    $self->_fetch($word_list);
+    my %word_to_insert;
+    my %word_to_update;
+    for my $word (@{$word_list}) {
+        if (($self->{state}{$word}{$category} || 'mishit') eq 'mishit') {
+            $word_to_insert{$word} = 1;
+        }
+        else {
+            $word_to_update{$word} = 1;
+        }
+    }
+    my @list = keys %word_to_update;
     while (my @cur = splice @list, 0, 200) {
         my $ph = join q{,}, (q{?}) x @cur;
-        my $query = $dbh->prepare(qq{
-            SELECT word FROM bayes_corpus
-                WHERE category = ? AND word IN ($ph);
-        });
-        $query->execute($category, @cur);
-        my @already = map { $_->[0] } @{ $query->fetchall_arrayref };
-        $query->finish;
-        next if ! @already;
-        $ph = join q{,}, (q{?}) x @already;
         my $update = $dbh->prepare(qq{
             UPDATE bayes_corpus
                SET num = num + 1
              WHERE category = ? AND word IN ($ph)
         });
-        $update->execute($category, @already);
-        for my $word (@already) {
-            delete $notyet{$word};
-        }
+        $update->execute($category, @cur);
     }
     my $insert = $dbh->prepare(q{
         INSERT INTO bayes_corpus VALUES (?, ?, 1);
     });
-    for my $word (keys %notyet) {
-        $insert->execute($word, $category);
+    for my $word (keys %word_to_insert) {
+        $insert->execute($word, $category) or croak;
     }
     $dbh->do(qq{
         UPDATE bayes_messages
            SET $category = $category + 1;
     });
     $begun_work or $dbh->commit;
+    for my $word (@{$word_list}) {
+        ++$self->{corpus}{$word}{$category};
+        $self->{state}{$word}{$category} = 'updated';
+    }
+    ++$self->{"${category}_messages"};
     return $self;
 }
 
@@ -78,7 +89,14 @@ sub forget {
     my $dbh = $self->dbh;
     my $begun_work =  $dbh->{BegunWork};
     $begun_work or $dbh->begin_work;
-    my @list = @{$word_list};
+    $self->_fetch($word_list);
+    my %word_to_update;
+    for my $word (@{$word_list}) {
+        if (($self->{state}{$word}{$category} || 'mishit') ne 'mishit') {
+            $word_to_update{$word} = 1;
+        }
+    }
+    my @list = keys %word_to_update;
     while (my @cur = splice @list, 0, 200) {
         my $ph = join q{,}, (q{?}) x @cur;
         my $sth = $dbh->prepare(qq{
@@ -94,12 +112,22 @@ sub forget {
            WHERE $category > 0;
     });
     $begun_work or $dbh->commit;
+    for my $word (keys %word_to_update) {
+        $self->{corpus}{$word}{$category} ||= 0;
+        if ($self->{corpus}{$word}{$category} > 0) {
+            --$self->{corpus}{$word}{$category};
+        }
+        $self->{state}{$word}{$category} = 'updated';
+    }
+    if ($self->{"${category}_messages"} > 0) {
+        --$self->{"${category}_messages"};
+    }
     return $self;
 }
 
 sub score {
     my($self, $word_list) = @_;
-    $self->_pickup($word_list);
+    $self->_fetch($word_list);
     my %prob;
     my $good_messages = $self->good_messages;
     my $spam_messages = $self->spam_messages;
@@ -171,7 +199,7 @@ sub spam {
         : 0;
 }
 
-sub _pickup {
+sub _fetch {
     my($self, $word_list) = @_;
     my $dbh = $self->dbh;
     if (! defined $self->spam_messages) {
@@ -179,19 +207,32 @@ sub _pickup {
             SELECT good, spam FROM bayes_messages;
         });
     }
-    my @list = grep { ! exists $self->{corpus}{$_} } @{$word_list};
-    for my $word (@list) {
-        $self->{corpus}{$word} = {good => 0, spam => 0};
+    my %mishit_words;
+    for my $word (@{$word_list}) {
+        my $mishit = 0;
+        if (! exists $self->{corpus}{$word}{good}) {
+            $self->{corpus}{$word}{good} = 0;
+            $mishit = 1;
+        }
+        if (! exists $self->{corpus}{$word}{spam}) {
+            $self->{corpus}{$word}{spam} = 0;
+            $mishit = 1;
+        }
+        if ($mishit) {
+            ++$mishit_words{$word};
+        }
     }
-    while (my @cur = splice @list, 0, 200) {
-        my $ph = join q{,}, (q{?}) x @cur;
+    my @mishit = keys %mishit_words;
+    while (my @list = splice @mishit, 0, 200) {
+        my $ph = join q{,}, (q{?}) x @list;
         my $sth = $dbh->prepare(qq{
             SELECT word, category, num FROM bayes_corpus WHERE word IN ($ph);
         });
-        $sth->execute(@cur);
+        $sth->execute(@list);
         for my $row (@{ $sth->fetchall_arrayref }) {
             my($word, $category, $count) = @{$row};
             $self->{corpus}{$word}{$category} = $count;
+            $self->{state}{$word}{$category} = 'fetched';
         }
         $sth->finish;
     }
@@ -210,7 +251,7 @@ Bayes::PaulGraham - bayesian document filter.
 
 =head1 VERSION
 
-0.002
+0.003
 
 =head1 SYNOPSIS
 
@@ -252,6 +293,10 @@ Sets and gets a database handle of a DBI class. Before using
 this instance, you must set your database handle already
 connected a datasource.
 
+=item C<< $self->clear_cache >>
+
+Resets cache buffers.
+
 =item C<< $self->train($category => \@word_list) >>
 
 Makes training a corpus table to keep occurences of
@@ -287,19 +332,19 @@ Creates two tables in the database connected by dbh attribute.
 
 =item C<< $self->good_messages >>
 
-Gets number of good messages after C<_pickup> instance method.
+Gets number of good messages after C<_fetch> instance method.
 
 =item C<< $self->spam_messages >>
 
-Gets number of spam messages after C<_pickup> instance method.
+Gets number of spam messages after C<_fetch> instance method.
 
 =item C<< $self->good($word) >>
 
-Gets number of good words after C<_pickup> instance method.
+Gets number of good words after C<_fetch> instance method.
 
 =item C<< $self->spam($word) >>
 
-Gets number of spam words after C<_pickup> instance method.
+Gets number of spam words after C<_fetch> instance method.
 
 =back
 
