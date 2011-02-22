@@ -1,5 +1,9 @@
 Revision history for Bayes-PaulGraham
 
+0.004  Tue Feb 22 13:29:55 2011
+    + auto cache_clear over 16KiB words.
+    ! remove internal cache state hash $self->{state}.
+
 0.003  Tue Feb 22 05:01:26 2011
     + add method clear_cache.
     ! rename private method _pickup to _fetch.

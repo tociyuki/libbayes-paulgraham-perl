@@ -4,9 +4,11 @@ use warnings;
 use Carp;
 
 # $Id$
-use version; our $VERSION = '0.003';
+use version; our $VERSION = '0.004';
 
 ## no critic qw(ProhibitImplicitNewlines ProhibitComplexMappings)
+
+my $CACHE_LIMIT = 16 * 1024; # words
 
 sub new {
     my($class) = @_;
@@ -20,109 +22,6 @@ sub dbh {
         $self->{dbh} = $arg[0];
     }
     return $self->{dbh};
-}
-
-sub clear_cache {
-    my($self) = @_;
-    $self->{state} = {};
-    $self->{corpus} = {};
-    $self->{good_messages} = $self->{spam_messages} = undef;
-    return $self;
-}
-
-# MySQL causes error to smart SQL as followings:
-#   REPLACE INTO bayes_corpus VALUES (:w, :c, ifnull((SELECT num
-#     FROM bayes_corpus WHERE word = :w AND category = :c), 0) + 1);
-sub train {
-    my($self, $category, $word_list) = @_;
-    if ($category ne 'good' && $category ne 'spam') {
-        croak "invalid category '$category'.";
-    }
-    my $dbh = $self->dbh;
-    my $begun_work =  $dbh->{BegunWork};
-    $begun_work or $dbh->begin_work;
-    $self->_fetch($word_list);
-    my %word_to_insert;
-    my %word_to_update;
-    for my $word (@{$word_list}) {
-        if (($self->{state}{$word}{$category} || 'mishit') eq 'mishit') {
-            $word_to_insert{$word} = 1;
-        }
-        else {
-            $word_to_update{$word} = 1;
-        }
-    }
-    my @list = keys %word_to_update;
-    while (my @cur = splice @list, 0, 200) {
-        my $ph = join q{,}, (q{?}) x @cur;
-        my $update = $dbh->prepare(qq{
-            UPDATE bayes_corpus
-               SET num = num + 1
-             WHERE category = ? AND word IN ($ph)
-        });
-        $update->execute($category, @cur);
-    }
-    my $insert = $dbh->prepare(q{
-        INSERT INTO bayes_corpus VALUES (?, ?, 1);
-    });
-    for my $word (keys %word_to_insert) {
-        $insert->execute($word, $category) or croak;
-    }
-    $dbh->do(qq{
-        UPDATE bayes_messages
-           SET $category = $category + 1;
-    });
-    $begun_work or $dbh->commit;
-    for my $word (@{$word_list}) {
-        ++$self->{corpus}{$word}{$category};
-        $self->{state}{$word}{$category} = 'updated';
-    }
-    ++$self->{"${category}_messages"};
-    return $self;
-}
-
-sub forget {
-    my($self, $category, $word_list) = @_;
-    if ($category ne 'good' && $category ne 'spam') {
-        croak 'invalid category.';
-    }
-    my $dbh = $self->dbh;
-    my $begun_work =  $dbh->{BegunWork};
-    $begun_work or $dbh->begin_work;
-    $self->_fetch($word_list);
-    my %word_to_update;
-    for my $word (@{$word_list}) {
-        if (($self->{state}{$word}{$category} || 'mishit') ne 'mishit') {
-            $word_to_update{$word} = 1;
-        }
-    }
-    my @list = keys %word_to_update;
-    while (my @cur = splice @list, 0, 200) {
-        my $ph = join q{,}, (q{?}) x @cur;
-        my $sth = $dbh->prepare(qq{
-            UPDATE bayes_corpus
-               SET num = num - 1
-             WHERE category = ? AND word IN ($ph) AND num > 0;
-        });
-        $sth->execute($category, @cur);
-    }
-    $dbh->do(qq{
-        UPDATE bayes_messages
-           SET $category = $category - 1
-           WHERE $category > 0;
-    });
-    $begun_work or $dbh->commit;
-    for my $word (keys %word_to_update) {
-        $self->{corpus}{$word}{$category} ||= 0;
-        if ($self->{corpus}{$word}{$category} > 0) {
-            --$self->{corpus}{$word}{$category};
-        }
-        $self->{state}{$word}{$category} = 'updated';
-    }
-    if ($self->{"${category}_messages"} > 0) {
-        --$self->{"${category}_messages"};
-    }
-    return $self;
 }
 
 sub score {
@@ -199,8 +98,104 @@ sub spam {
         : 0;
 }
 
+# MySQL causes error to smart SQL as followings:
+#   REPLACE INTO bayes_corpus VALUES (:w, :c, ifnull((SELECT num
+#     FROM bayes_corpus WHERE word = :w AND category = :c), 0) + 1);
+sub train {
+    my($self, $category, $word_list) = @_;
+    if ($category ne 'good' && $category ne 'spam') {
+        croak "invalid category '$category'.";
+    }
+    my $dbh = $self->dbh;
+    my $begun_work =  $dbh->{BegunWork};
+    $begun_work or $dbh->begin_work;
+    $self->_fetch($word_list);
+    my %word_to_insert;
+    my %word_to_update;
+    for my $word (@{$word_list}) {
+        if (exists $self->{corpus}{$word}{$category}) {
+            $word_to_update{$word} = 1;
+        }
+        else {
+            $word_to_insert{$word} = 1;
+        }
+    }
+    my @list = keys %word_to_update;
+    while (my @cur = splice @list, 0, 200) {
+        my $ph = join q{,}, (q{?}) x @cur;
+        my $update = $dbh->prepare(qq{
+            UPDATE bayes_corpus
+               SET num = num + 1
+             WHERE category = ? AND word IN ($ph)
+        });
+        $update->execute($category, @cur);
+    }
+    my $insert = $dbh->prepare(q{
+        INSERT INTO bayes_corpus VALUES (?, ?, 1);
+    });
+    for my $word (keys %word_to_insert) {
+        $insert->execute($word, $category);
+    }
+    $dbh->do(qq{
+        UPDATE bayes_messages
+           SET $category = $category + 1;
+    });
+    $begun_work or $dbh->commit;
+    for my $word (@{$word_list}) {
+        ++$self->{corpus}{$word}{$category};
+    }
+    ++$self->{"${category}_messages"};
+    return $self;
+}
+
+sub forget {
+    my($self, $category, $word_list) = @_;
+    if ($category ne 'good' && $category ne 'spam') {
+        croak 'invalid category.';
+    }
+    my $dbh = $self->dbh;
+    my $begun_work =  $dbh->{BegunWork};
+    $begun_work or $dbh->begin_work;
+    $self->_fetch($word_list);
+    my %word_to_update;
+    for my $word (@{$word_list}) {
+        if (exists $self->{corpus}{$word}{$category}) {
+            $word_to_update{$word} = 1;
+        }
+    }
+    my @list = keys %word_to_update;
+    while (my @cur = splice @list, 0, 200) {
+        my $ph = join q{,}, (q{?}) x @cur;
+        my $sth = $dbh->prepare(qq{
+            UPDATE bayes_corpus
+               SET num = num - 1
+             WHERE category = ? AND word IN ($ph) AND num > 0;
+        });
+        $sth->execute($category, @cur);
+    }
+    $dbh->do(qq{
+        UPDATE bayes_messages
+           SET $category = $category - 1
+           WHERE $category > 0;
+    });
+    $begun_work or $dbh->commit;
+    for my $word (keys %word_to_update) {
+        $self->{corpus}{$word}{$category} ||= 0;
+        if ($self->{corpus}{$word}{$category} > 0) {
+            --$self->{corpus}{$word}{$category};
+        }
+    }
+    if ($self->{"${category}_messages"} > 0) {
+        --$self->{"${category}_messages"};
+    }
+    return $self;
+}
+
 sub _fetch {
     my($self, $word_list) = @_;
+    if ($CACHE_LIMIT <= scalar keys %{$self->{corpus}}) {
+        $self->clear_cache;
+    }
     my $dbh = $self->dbh;
     if (! defined $self->spam_messages) {
         @{$self}{qw(good_messages spam_messages)} = $dbh->selectrow_array(q{
@@ -209,17 +204,10 @@ sub _fetch {
     }
     my %mishit_words;
     for my $word (@{$word_list}) {
-        my $mishit = 0;
-        if (! exists $self->{corpus}{$word}{good}) {
-            $self->{corpus}{$word}{good} = 0;
-            $mishit = 1;
-        }
-        if (! exists $self->{corpus}{$word}{spam}) {
-            $self->{corpus}{$word}{spam} = 0;
-            $mishit = 1;
-        }
-        if ($mishit) {
-            ++$mishit_words{$word};
+        if (   ! exists $self->{corpus}{$word}{good}
+            || ! exists $self->{corpus}{$word}{spam}
+        ) {
+            $mishit_words{$word} = 1;
         }
     }
     my @mishit = keys %mishit_words;
@@ -232,10 +220,17 @@ sub _fetch {
         for my $row (@{ $sth->fetchall_arrayref }) {
             my($word, $category, $count) = @{$row};
             $self->{corpus}{$word}{$category} = $count;
-            $self->{state}{$word}{$category} = 'fetched';
         }
         $sth->finish;
     }
+    return $self;
+}
+
+sub clear_cache {
+    my($self) = @_;
+    $self->{state} = {};
+    $self->{corpus} = {};
+    $self->{good_messages} = $self->{spam_messages} = undef;
     return $self;
 }
 
@@ -251,7 +246,7 @@ Bayes::PaulGraham - bayesian document filter.
 
 =head1 VERSION
 
-0.003
+0.004
 
 =head1 SYNOPSIS
 
