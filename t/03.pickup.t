@@ -40,6 +40,10 @@ while (my $block = next_block()) {
         },
         $block->expected,
         $block->name;
+
+    if ($block->name eq 'quick money') {
+        --$pgh->{rev};
+    }
 }
 
 $dbh->do(q{DROP TABLE bayes_messages});
@@ -107,6 +111,19 @@ quick money
         'dog'       => {},
         'rabbit'    => {'good' => 10},
         'money'     => {'spam' => 10},
+    },
+}
+
+=== quick rabbit once again
+--- input
+quick rabbit
+--- expected
++{
+    good_messages => 30,
+    spam_messages => 20,
+    corpus => {
+        'quick'     => {'spam' => 10, 'good' => 20},
+        'rabbit'    => {'good' => 10},
     },
 }
 

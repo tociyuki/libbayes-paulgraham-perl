@@ -4,7 +4,7 @@ use warnings;
 use Carp;
 
 # $Id$
-use version; our $VERSION = '0.004';
+use version; our $VERSION = '0.005';
 
 ## no critic qw(ProhibitImplicitNewlines ProhibitComplexMappings)
 
@@ -64,10 +64,11 @@ sub create_table {
         CREATE TABLE bayes_messages (
              good INTEGER NOT NULL
             ,spam INTEGER NOT NULL
+            ,rev  INTEGER NOT NULL
         );
     });
     $dbh->do(q{
-        INSERT INTO bayes_messages VALUES (0, 0);
+        INSERT INTO bayes_messages VALUES (0, 0, 0);
     });
     $dbh->do(q{
         CREATE TABLE bayes_corpus (
@@ -138,13 +139,15 @@ sub train {
     }
     $dbh->do(qq{
         UPDATE bayes_messages
-           SET $category = $category + 1;
+           SET $category = $category + 1,
+               rev = rev + 1;
     });
     $begun_work or $dbh->commit;
     for my $word (@{$word_list}) {
         ++$self->{corpus}{$word}{$category};
     }
     ++$self->{"${category}_messages"};
+    $self->{rev} = ($self->{rev} || 0) + 1;
     return $self;
 }
 
@@ -178,6 +181,10 @@ sub forget {
            SET $category = $category - 1
            WHERE $category > 0;
     });
+    $dbh->do(qq{
+        UPDATE bayes_messages
+           SET rev = rev + 1;
+    });
     $begun_work or $dbh->commit;
     for my $word (keys %word_to_update) {
         $self->{corpus}{$word}{$category} ||= 0;
@@ -188,20 +195,23 @@ sub forget {
     if ($self->{"${category}_messages"} > 0) {
         --$self->{"${category}_messages"};
     }
+    $self->{rev} = ($self->{rev} || 0) + 1;
     return $self;
 }
 
 sub _fetch {
     my($self, $word_list) = @_;
-    if ($CACHE_LIMIT <= scalar keys %{$self->{corpus}}) {
+    my $dbh = $self->dbh;
+    $self->{rev} ||= 0;
+    my($good, $spam, $rev) = $dbh->selectrow_array(q{
+        SELECT good, spam, rev FROM bayes_messages;
+    });
+    if ($self->{rev} != $rev
+        || $CACHE_LIMIT <= scalar keys %{$self->{corpus}}
+    ) {
         $self->clear_cache;
     }
-    my $dbh = $self->dbh;
-    if (! defined $self->spam_messages) {
-        @{$self}{qw(good_messages spam_messages)} = $dbh->selectrow_array(q{
-            SELECT good, spam FROM bayes_messages;
-        });
-    }
+    @{$self}{qw(good_messages spam_messages rev)} = ($good, $spam, $rev);
     my %mishit_words;
     for my $word (@{$word_list}) {
         if (   ! exists $self->{corpus}{$word}{good}
@@ -246,7 +256,7 @@ Bayes::PaulGraham - bayesian document filter.
 
 =head1 VERSION
 
-0.004
+0.005
 
 =head1 SYNOPSIS
 

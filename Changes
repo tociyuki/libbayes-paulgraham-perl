@@ -1,5 +1,8 @@
 Revision history for Bayes-PaulGraham
 
+0.005  Sun Feb 27 13:06:53 2011
+    + check data revision for clearing cache.
+
 0.004  Tue Feb 22 13:29:55 2011
     + auto cache_clear over 16KiB words.
     ! remove internal cache state hash $self->{state}.

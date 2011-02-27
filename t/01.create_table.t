@@ -7,7 +7,7 @@ if (! grep { $_ eq 'SQLite' } DBI->available_drivers) {
     plan skip_all => 'DBD::SQLite is not installed.';
 }
 
-plan tests => 19;
+plan tests => 22;
 
 # use inmemory sqlite3 database.
 my $dbh = DBI->connect("dbi:SQLite:dbname=", q{}, q{});
@@ -57,6 +57,13 @@ is $good, 0, 'bayes_messages.good default 0';
 is $spammessages->[1]{name}, 'spam', 'bayes_messages.spam';
 like $spammessages->[1]{type}, qr/INT/, 'bayes_messages.spam INT';
 is $spam, 0, 'bayes_messages.spam default 0';
+
+is $spammessages->[2]{name}, 'rev', 'bayes_messages.rev';
+like $spammessages->[2]{type}, qr/INT/, 'bayes_messages.rev INT';
+is $spam, 0, 'bayes_messages.rev default 0';
+
+$dbh->do(q{DROP TABLE bayes_messages});
+$dbh->do(q{DROP TABLE bayes_corpus});
 
 $dbh->disconnect;
 

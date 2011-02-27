@@ -65,7 +65,7 @@ good
 nobody owns the water
 --- expected
 +{
-    bayes_messages => [{'good' => 1, 'spam' => 0}],
+    bayes_messages => [{'good' => 1, 'spam' => 0, 'rev' => 1}],
     bayes_corpus => [
         {'num' => 1, 'category' => 'good', 'word' => 'nobody'},
         {'num' => 1, 'category' => 'good', 'word' => 'owns'},
@@ -91,7 +91,7 @@ good
 the quick rabbit jumps fences
 --- expected
 +{
-    bayes_messages => [{'good' => 2, 'spam' => 0}],
+    bayes_messages => [{'good' => 2, 'spam' => 0, 'rev' => 2}],
     bayes_corpus => [
         {'num' => 1, 'category' => 'good', 'word' => 'fences'},
         {'num' => 1, 'category' => 'good', 'word' => 'jumps'},
@@ -125,7 +125,7 @@ spam
 buy pharmaceuticals now
 --- expected
 +{
-    bayes_messages => [{'good' => 2, 'spam' => 1}],
+    bayes_messages => [{'good' => 2, 'spam' => 1, 'rev' => 3}],
     bayes_corpus => [
         {'num' => 1, 'category' => 'spam', 'word' => 'buy'},
         {'num' => 1, 'category' => 'good', 'word' => 'fences'},
@@ -166,7 +166,7 @@ good
 make quick money at the online casino
 --- expected
 +{
-    bayes_messages => [{'good' => 3, 'spam' => 1}],
+    bayes_messages => [{'good' => 3, 'spam' => 1, 'rev' => 4}],
     bayes_corpus => [
         {'num' => 1, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'buy'},
@@ -216,7 +216,7 @@ spam
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 3, 'spam' => 2}],
+    bayes_messages => [{'good' => 3, 'spam' => 2, 'rev' => 5}],
     bayes_corpus => [
         {'num' => 1, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'brown'},
@@ -273,7 +273,7 @@ good
 make quick money at the online casino
 --- expected
 +{
-    bayes_messages => [{'good' => 2, 'spam' => 2}],
+    bayes_messages => [{'good' => 2, 'spam' => 2, 'rev' => 6}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'brown'},
@@ -330,7 +330,7 @@ spam
 make quick money at the online casino
 --- expected
 +{
-    bayes_messages => [{'good' => 2, 'spam' => 3}],
+    bayes_messages => [{'good' => 2, 'spam' => 3, 'rev' => 7}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -392,7 +392,7 @@ spam
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 2, 'spam' => 2}],
+    bayes_messages => [{'good' => 2, 'spam' => 2, 'rev' => 8}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -454,7 +454,7 @@ good
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 3, 'spam' => 2}],
+    bayes_messages => [{'good' => 3, 'spam' => 2, 'rev' => 9}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -518,7 +518,7 @@ good
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 2, 'spam' => 2}],
+    bayes_messages => [{'good' => 2, 'spam' => 2, 'rev' => 10}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -582,7 +582,7 @@ good
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 1, 'spam' => 2}],
+    bayes_messages => [{'good' => 1, 'spam' => 2, 'rev' => 11}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -646,7 +646,7 @@ good
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 0, 'spam' => 2}],
+    bayes_messages => [{'good' => 0, 'spam' => 2, 'rev' => 12}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -710,7 +710,7 @@ good
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 0, 'spam' => 2}],
+    bayes_messages => [{'good' => 0, 'spam' => 2, 'rev' => 13}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
@@ -774,7 +774,7 @@ good
 the quick brown fox jumps
 --- expected
 +{
-    bayes_messages => [{'good' => 1, 'spam' => 2}],
+    bayes_messages => [{'good' => 1, 'spam' => 2, 'rev' => 14}],
     bayes_corpus => [
         {'num' => 0, 'category' => 'good', 'word' => 'at'},
         {'num' => 1, 'category' => 'spam', 'word' => 'at'},
